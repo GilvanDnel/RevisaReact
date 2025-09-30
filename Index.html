@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Bolso: Revisão de React Native</title>
+    <!-- Carrega Tailwind CSS para estilo responsivo e moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Configuração da fonte Inter (padrão) */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        :root {
+            --primary-color: #10b981; /* Esmeralda 500 para feedback correto */
+            --secondary-color: #f87171; /* Vermelho 400 para feedback incorreto */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Fundo escuro (Slate 900) */
+            color: #e2e8f0; /* Texto claro (Slate 200) */
+        }
+
+        /* Estilos personalizados para o Toast de feedback */
+        #feedback-toast {
+            transition: all 0.3s ease-in-out;
+            transform: translateY(100%);
+            bottom: 0;
+            /* Garante que o texto da explicação longa não fique muito apertado */
+            padding-right: 1.5rem; 
+        }
+
+        #feedback-toast.show {
+            transform: translateY(0);
+        }
+
+        /* Estilo para a opção correta após o erro */
+        .correct-answer-highlight {
+            background-color: #065f46; /* Verde escuro para destaque */
+            border-left: 4px solid var(--primary-color);
+        }
+
+        /* Estilo para o botão de opção no hover/focus */
+        .option-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Estilo para renderizar quebras de linha em textos do quiz (opcional) */
+        .whitespace-pre-line {
+            white-space: pre-line;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-6 flex justify-center items-start">
+
+    <!-- Container Principal do Manual -->
+    <div id="app-container" class="w-full max-w-2xl bg-slate-800 p-6 sm:p-8 rounded-xl shadow-2xl space-y-8 mt-4 mb-24">
+        
+        <!-- Cabeçalho e Progresso -->
+        <header class="text-center space-y-2">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-white">Manual de Bolso React Native</h1>
+            <p id="progress-text" class="text-sm font-medium text-slate-400">Questão 1 de 20</p>
+            <div id="progress-bar-container" class="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div id="progress-bar" class="h-full bg-emerald-500 transition-all duration-500 ease-out" style="width: 5%;"></div>
+            </div>
+        </header>
+
+        <!-- Área da Questão -->
+        <section id="quiz-section" class="space-y-6">
+            <div class="bg-slate-700 p-5 rounded-lg border-l-4 border-emerald-500 shadow-md">
+                <p id="question-text" class="text-lg font-semibold text-slate-100 leading-relaxed whitespace-pre-line">
+                    <!-- O texto da pergunta será injetado aqui pelo JS -->
+                </p>
+            </div>
+
+            <!-- Opções de Resposta -->
+            <div id="options-container" class="space-y-4">
+                <!-- As opções serão injetadas aqui pelo JS -->
+            </div>
+
+            <!-- Botão Próxima Questão (Escondido inicialmente) -->
+            <button id="next-button" 
+                    class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-lg transition duration-200 opacity-0 pointer-events-none"
+                    onclick="nextQuestion()">
+                Próxima Questão <span aria-hidden="true">&rarr;</span>
+            </button>
+        </section>
+    </div>
+
+    <!-- Feedback Toast (Alerta personalizado - Substitui alert()) -->
+    <div id="feedback-toast" 
+         class="fixed left-0 right-0 mx-auto w-full max-w-md p-4 rounded-t-xl shadow-2xl z-50 flex flex-col justify-start sm:justify-between items-start sm:items-center space-y-2"
+         style="box-shadow: 0 -5px 15px rgba(0,0,0,0.5);">
+        <p id="feedback-message" class="font-semibold text-left text-sm sm:text-base"></p>
+        <button id="toast-button" class="py-1 px-3 bg-white text-sm font-bold rounded-lg hidden" onclick="hideToast()"></button>
+    </div>
+
+    <!-- Modal de Fim do Quiz -->
+    <div id="finish-modal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm hidden items-center justify-center p-4 z-[100]">
+        <div class="bg-slate-800 p-8 rounded-xl max-w-sm w-full text-center space-y-5 border-t-4 border-emerald-500">
+            <h2 class="text-3xl font-bold text-emerald-400">Revisão Concluída!</h2>
+            <p class="text-slate-300">Você revisou <span id="final-total-questions" class="font-bold"></span> conceitos de React Native.</p>
+            <p class="text-lg font-extrabold text-white">Seu desempenho: <span id="final-score" class="text-emerald-400">0</span> / <span id="final-max-score">0</span></p>
+            <button class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition duration-200" onclick="restartQuiz()">
+                Revisar Novamente
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        // Dados do Quiz (Todas as 20 Questões extraídas do PDF DOC-20250930-WA0200..pdf)
+        const quizData = [
+            {
+                id: 1,
+                question: "Com base no texto, assinale a alternativa que expressa corretamente o papel do Flexbox no React Native:",
+                options: [
+                    "A) Flexbox é responsável por gerenciar a navegação entre diferentes telas de um aplicativo.",
+                    "B) Flexbox é usado para importar bibliotecas externas e componentes nativos no React Native.",
+                    "C) Flexbox permite criar interfaces estáticas e inflexíveis, mantendo o controle visual absoluto.",
+                    "D) Flexbox organiza visualmente os elementos, garantindo responsividade e adaptação a diferentes dispositivos.",
+                    "E) Flexbox é um recurso exclusivo de componentes nativos, não aplicável em componentes personalizados."
+                ],
+                answer: "D",
+                explanation: "Flexbox organiza visualmente elementos e garante **responsividade** em diferentes dispositivos. Não tem relação com navegação ou importação de bibliotecas."
+            },
+            {
+                id: 2,
+                question: "Com base no texto, é correto afirmar que o componente **<View>**:",
+                options: [
+                    "A) Possui funcionalidade equivalente ao <Text> no HTML.",
+                    "B) Deve ser usado apenas em projetos simples, por causa de sua limitação de recursos.",
+                    "C) Seu uso é restrito a estilos fixos, sem suporte à responsividade.",
+                    "D) Permite criar estruturas organizadas, adaptáveis e estilizadas, similar à <div> no HTML.",
+                    "E) É utilizado exclusivamente para renderizar listas e coleções de dados."
+                ],
+                answer: "D",
+                explanation: "O `<View>` funciona de forma semelhante à **<div>** do HTML: agrupa, organiza e aplica estilos aos elementos, e é essencial em praticamente todos os projetos."
+            },
+            {
+                id: 3,
+                question: "Com base nas informações do texto, é correto afirmar que o hook **useState**:",
+                options: [
+                    "A) É responsável pela navegação entre telas em React Native.",
+                    "B) Atualiza os dados do backend sem alterar o estado da interface.",
+                    "C) Permite o controle reativo de variáveis de estado, refletindo suas mudanças na interface.",
+                    "D) O seu uso é obrigatório em todos os componentes React Native.",
+                    "E) É utilizado apenas em componentes de classe no React Native."
+                ],
+                answer: "C",
+                explanation: "O `useState` controla variáveis de estado de forma **reativa**, atualizando a interface automaticamente sempre que o estado muda. Ele é exclusivo de componentes funcionais."
+            },
+            {
+                id: 4,
+                question: "Com base no texto, conclui-se que o **Expo**:",
+                options: [
+                    "A) Exige configurações avançadas para execução do aplicativo em tempo real.",
+                    "B) Depende exclusivamente de um emulador Android para testar aplicativos React Native.",
+                    "C) Facilita o desenvolvimento ao permitir a visualização imediata do app por meio do Expo Go.",
+                    "D) Substitui a necessidade do React Native para criar interfaces móveis.",
+                    "E) Não permite testar aplicações em dispositivos físicos."
+                ],
+                answer: "C",
+                explanation: "A grande vantagem do Expo é visualizar o app em **tempo real** no celular usando Expo Go, escaneando um QR Code, o que elimina a configuração avançada de emuladores."
+            },
+            {
+                id: 5,
+                question: "A principal vantagem do uso do **<TouchableOpacity>** em relação ao <Button> é:",
+                options: [
+                    "A) Incorreto. Ele não substitui automaticamente outros componentes; precisa ser usado conscientemente pelo desenvolvedor.",
+                    "B) Sua vantagem é criar botões personalizados, com controle de estilo e feedback visual ao toque.",
+                    "C) Incorreto. Ele funciona tanto em iOS quanto em Android, não é exclusivo.",
+                    "D) Incorreto. Apesar de poder ser usado com animações, não oferece suporte nativo a animações complexas sem libs adicionais.",
+                    "E) Incorreto. Pode ser usado em qualquer projeto, não só em componentes funcionais."
+                ],
+                answer: "B",
+                explanation: "O `<TouchableOpacity>` permite **personalização total de estilo** e fornece feedback visual (opacidade reduzida) ao toque, sendo mais versátil que o `<Button>`."
+            },
+            {
+                id: 6,
+                question: "Com base no texto, analise as afirmações a seguir:\n\nI. O Flexbox permite alinhas os elementos na tela tanto na direção vertical quanto na horizontal.\nII. Propriedades como justifyContent e alignItems garantem controle preciso sobre o posicionamento dos elementos.\nIII. O Flexbox substitui a necessidade de usar componentes como <View> ou <Text> no React Native.\nIV. O Flexbox é útil para tornar a interface responsiva a diferentes tamanhos de tela.\n\nAssinale a alternativa correta:",
+                options: [
+                    "A) I, II e III, apenas.",
+                    "B) I, III e IV, apenas.",
+                    "C) II, III e IV, apenas.",
+                    "D) I, II e IV, apenas.",
+                    "E) I, II, III e IV."
+                ],
+                answer: "D",
+                explanation: "As afirmações I, II e IV estão corretas. A afirmação III está incorreta, pois o Flexbox **organiza o layout dentro** de componentes como `<View>` e `<Text>`, mas não os substitui."
+            },
+            {
+                id: 7,
+                question: "Com base no texto, analise as afirmações a seguir:\n\nI. O componente <Text> permite a customização completa da aparência textual por meio de estilos.\nII. Elementos aninhados dentro de um <Text> devem ser obrigatoriamente imagens externas.\nIII. A utilização correta do <Text> é essencial para garantir legibilidade e boa usabilidade.\nIV. O <Text> pode ser estilizado com propriedades como cor, tamanho e alinhamento.\n\nAssinale a alternativa correta:",
+                options: [
+                    "A) I, III e IV, apenas.",
+                    "B) II, III e IV, apenas.",
+                    "C) I, II e IV, apenas.",
+                    "D) I, II e III, apenas.",
+                    "E) I, II, III e IV."
+                ],
+                answer: "A",
+                explanation: "As afirmações I, III e IV estão corretas. A afirmação II está incorreta, pois elementos aninhados em `<Text>` podem ser outros `<Text>` ou **ícones**, não obrigatoriamente imagens externas."
+            },
+            {
+                id: 8,
+                question: "Com base no texto, analise as afirmações a seguir:\n\nI. O Expo permite rodar aplicativos diretamente no celular, sem necessidade de emuladores.\nII. O uso do Expo dispensa completamente qualquer conhecimento sobre programação nativa.\nIII. Para utilizar sensores ou recursos avançados do aparelho, pode ser necessário sair do ambiente do Expo.\nIV. O Expo é especialmente útil em projetos iniciais, MVPs e contextos de aprendizagem.\n\nAssinale a alternativa correta:",
+                options: [
+                    "A) I, III e IV, apenas.",
+                    "B) II, III e IV, apenas.",
+                    "C) I, II e IV, apenas.",
+                    "D) I, II e III, apenas.",
+                    "E) I, II, III e IV."
+                ],
+                answer: "A",
+                explanation: "As afirmações I, III e IV estão corretas. A afirmação II está incorreta, pois, embora o Expo simplifique, ele **não dispensa totalmente** o conhecimento de programação nativa, especialmente para recursos avançados."
+            },
+            {
+                id: 9,
+                question: "Com base no texto, analise as afirmações a seguir:\n\nI. O <TouchableOpacity> fornece feedback visual ao alterar sua opacidade quando pressionado.\nII. O componente permite a inserção de qualquer tipo de conteúdo visual, como imagens e ícones.\nIII. O <Button> oferece mais opções de personalização do que o <TouchableOpacity>.\nIV. A principal vantagem do <TouchableOpacity> é sua flexibilidade estética.\n\nAssinale a alternativa correta:",
+                options: [
+                    "A) I, II e IV, apenas.",
+                    "B) I, III e IV, apenas.",
+                    "C) II, III e IV, apenas.",
+                    "D) I, II e III, apenas.",
+                    "E) I, II, III e IV."
+                ],
+                answer: "A",
+                explanation: "As afirmações I, II e IV estão corretas. A afirmação III está incorreta: o `<TouchableOpacity>` é que é **mais flexível** e oferece mais personalização do que o `<Button>`."
+            },
+            {
+                id: 10,
+                question: "Com base no texto, analise as afirmações a seguir:\n\nI. O useEffect pode ser usado para executar funções na montagem, atualização ou desmontagem de um componente.\nII. O useEffect permite chamadas a APIs e configuração de timers.\nIII. O hook useEffect é ativado automaticamente sempre que o usuário interage com a interface.\nIV. A função de retorno do useEffect serve para limpeza de efeitos colaterais.\n\nAssinale a alternativa correta:",
+                options: [
+                    "A) I, II e IV, apenas.",
+                    "B) I, III e IV, apenas.",
+                    "C) II, III e IV, apenas.",
+                    "D) I, II e III, apenas.",
+                    "E) I, II, III e IV."
+                ],
+                answer: "A",
+                explanation: "As afirmações I, II e IV estão corretas. A afirmação III está incorreta, pois o `useEffect` é ativado conforme as **dependências definidas** (array), não a cada interação do usuário."
+            },
+            {
+                id: 11,
+                question: "Qual propriedade é usada para alinhas os elementos no **eixo principal** em Flexbox?",
+                options: [
+                    "A) alignltems",
+                    "B) padding",
+                    "C) justifyContent",
+                    "D) marginTop",
+                    "E) flexGrow"
+                ],
+                answer: "C",
+                explanation: "O `justifyContent` controla o alinhamento e a distribuição dos elementos ao longo do **eixo principal** (`row` ou `column`). O `alignItems` controla o eixo secundário (transversal)."
+            },
+            {
+                id: 12,
+                question: "O componente **<FlatList>** é mais indicado quando:",
+                options: [
+                    "A) Há poucos dados e o layout é fixo.",
+                    "B) O objetivo é criar navegação entre telas.",
+                    "C) É necessário renderizar grandes quantidades de dados de forma performática.",
+                    "D) É preciso capturar gestos e eventos de toque personalizados.",
+                    "E) O aplicativo não utiliza listas, mas apenas elementos estáticos."
+                ],
+                answer: "C",
+                explanation: "A principal função do `<FlatList>` é renderizar **grandes quantidades de dados** de forma performática, usando a técnica de virtualização (renderização sob demanda)."
+            },
+            {
+                id: 13,
+                question: "Considerando as asserções: I. O Expo é uma ferramenta indicada para iniciantes por simplificar o processo de execução e testes de aplicativos. PORQUE II. Com o Expo Go, é possível visualizar o aplicativo no celular em tempo real, sem necessidade de compilar o projeto. Assinale a opção correta:",
+                options: [
+                    "A) As asserções I e II são proposições verdadeiras, e a II é uma justificativa correta da I.",
+                    "B) As asserções I e II são proposições verdadeiras, mas a II não é uma justificativa correta da I.",
+                    "C) A asserção I é uma proposição verdadeira, e a II é uma proposição falsa.",
+                    "D) A asserção I é uma proposição falsa, e a II é uma proposição verdadeira.",
+                    "E) As asserções I e II são proposições falsas."
+                ],
+                answer: "A",
+                explanation: "Ambas as asserções são verdadeiras, e a Asserção II (visualização em tempo real sem compilação) **justifica** o porquê de a Asserção I (ser indicada para iniciantes) ser verdadeira, devido à simplificação do processo."
+            },
+            {
+                id: 14,
+                question: "Considerando as asserções: I. O useState permite o controle de variáveis que mudam ao longo da execução da aplicação, re-renderizando o componente ao detectar mudanças. PORQUE II. O hook useState retorna um par de valores: a variável de estado e a função responsável por atualizá-la. Assinale a opção correta:",
+                options: [
+                    "A) As asserções I e II são proposições verdadeiras, e a II é uma justificativa correta da I.",
+                    "B) As asserções I e II são proposições verdadeiras, mas a II não é uma justificativa correta da I.",
+                    "C) A asserção I é uma proposição verdadeira, e a II é uma proposição falsa.",
+                    "D) A asserção I é uma proposição falsa, e a II é uma proposição verdadeira.",
+                    "E) As asserções I e II são proposições falsas."
+                ],
+                answer: "B",
+                explanation: "Ambas as asserções são verdadeiras. No entanto, a Asserção II (o que o useState retorna) **descreve a sintaxe** do hook, mas não é a razão direta pela qual ele causa a re-renderização (que é o que a Asserção I afirma)."
+            },
+            {
+                id: 15,
+                question: "Considerando as asserções: I. O <TouchableOpacity> é preferido ao <Button> quando há necessidade de personalização visual no botão. PORQUE II. Ele permite aplicar estilos personalizados e fornece feedback visual ao reduzir a opacidade no momento do toque. Assinale a opção correta:",
+                options: [
+                    "A) As asserções I e II são proposições verdadeiras, e a II é uma justificativa correta da I.",
+                    "B) As asserções I e II são proposições verdadeiras, mas a II não é uma justificativa co
